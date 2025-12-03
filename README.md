@@ -1,174 +1,118 @@
 # Clinic Project – Predicting Clinical Trial Success
 
-This project aims to **predict the probability of success of clinical trials** using data from ClinicalTrials.gov. Following course requirements, our group experimented with multiple data sources, labeling strategies, feature pipelines, and model families.
+This project aims to **predict the probability of success of clinical trials** using data from ClinicalTrials.gov. We experimented with multiple data sources, labeling strategies, feature pipelines, and model families, focusing on three primary approaches: a text-based baseline, a structured data model, and a deep learning ClinicalBERT model.
 
 ---
 
 ## 📂 Repository Structure
 
 ```
-
 .
-├── Baseline.ipynb               # Text-based TF-IDF + Logistic Regression baseline
-├── structured_model.ipynb       # Structured-feature Random Forest model
-├── trials_data_students.ipynb   # XML parsing pipeline for extracting trial info
+├── Base.ipynb                   # Text-based TF-IDF + Logistic Regression/LightGBM baseline
+├── ClinicalBert.ipynb           # Deep learning model using ClinicalBERT embeddings
+├── structured_model.ipynb       # Random Forest model using structured features
+├── trials_data_students.ipynb   # XML parsing pipeline helper
 ├── phases.npy                   # Phase category mapping
 ├── requirements.txt             # Python dependencies
 ├── README.md                    # Project documentation
 └── .gitignore
-
 ```
 
 ---
 
 # 1. Project Objective
 
-**Goal:**  
-Build a machine learning system that predicts whether a clinical trial will succeed.
+**Goal:**
+Build a machine learning system that predicts whether a clinical trial will succeed based on its characteristics and description.
 
-**Definition of success:**  
-Trials labeled as **COMPLETED** are treated as positive outcomes; all others are negative.
-
----
-
-# 2. Data Sources
-
-We explored the two official project data options:
-
-### **1. ClinicalTrials.gov XML Dataset**
-- Parsed XML fields such as baseline characteristics, participant flow, arms/interventions, metrics, and analyzed results.  
-- Implemented in `trials_data_students.ipynb`.
-
-### **2. Processed CSV Dataset**
-- A curated structured dataset containing ~559k trials.  
-- Includes fields like:  
-  `NCT ID`, `Study Status`, `Phase`, `Enrollment`, `Conditions`, `Interventions`, `Dates`, etc.  
-- Used in `structured_model.ipynb`.
+**Definition of Success:**
+*   **Base & ClinicalBert**: Trials labeled as **COMPLETED**, having **Clinical Results**, and in **Phase 2/3, 3, or 4**.
+*   **Structured Model**: Trials labeled as **COMPLETED** and having **Published Results**.
 
 ---
 
-# 3. Labeling Approach
+# 2. Data Sources & Pipelines
 
-We used an existing outcome label derived from **Study Status**:
+### **1. XML Dataset (Used in `Base.ipynb` & `ClinicalBert.ipynb`)**
+*   **Source**: Raw XML files from ClinicalTrials.gov.
+*   **Pipeline**:
+    *   Parses XML to extract text fields: `brief_summary`, `detailed_description`, `interventions`, `primary_outcomes`.
+    *   Filters for trials with valid phases.
+    *   **Base**: Converts text to TF-IDF sparse features (up to 50k features).
+    *   **ClinicalBert**: Tokenizes text for BERT input.
 
-```
-
-Success (1) = "COMPLETED"
-Failure (0) = all other statuses
-
-```
-
-This approach ensures consistency across text, structured, and XML pipelines.
-
----
-
-# 4. Data Pipeline
-
-### **Text Processing (Baseline.ipynb)**
-- Concatenate textual fields (brief summary, description, conditions)
-- Clean and normalize text
-- Convert to TF-IDF sparse features
-
-### **Structured Pipeline (structured_model.ipynb)**
-- Parse attributes such as enrollment, phase, type, sponsor  
-- Encode categorical fields  
-- Generate numeric features (duration, number of conditions/interventions, location count)  
-- Train/test split
-
-### **XML Extraction (trials_data_students.ipynb)**
-- Convert ClinicalTrials.gov XML into flat rows with:
-  - Participant flow  
-  - Baseline characteristics  
-  - Outcome measures  
-  - Milestones and drop/withdraw details  
-- Generate structured tables for ML
+### **2. Processed CSV Dataset (Used in `structured_model.ipynb`)**
+*   **Source**: `raw_data/ctg-studies.csv` containing ~559k trials.
+*   **Pipeline**:
+    *   Loads CSV and performs feature engineering.
+    *   Encodes categorical variables (Phase, Study Type, Sex).
+    *   Handles missing values and generates numeric counts.
 
 ---
 
-# 5. Models Implemented
+# 3. Features
 
-### **1. Text Baseline – Logistic Regression**
-- TF-IDF vectorization  
-- Fast & interpretable  
-- Notebook: `Baseline.ipynb`
-
-### **2. Structured Model – Random Forest**
-- Handles heterogeneous feature types  
-- Captures non-linear feature interactions  
-- Notebook: `structured_model.ipynb`
-
-### **3. XML Pipeline – Feature Extraction**
-- Extracts metadata and patient flow  
-- Prepares raw XML for future modeling  
-- Notebook: `trials_data_students.ipynb`
+| Model | Feature Type | Key Features |
+|-------|--------------|--------------|
+| **Base** | Textual (Sparse) | TF-IDF vectors from summaries, descriptions, interventions, and outcomes. |
+| **Structured** | Numeric & Categorical | `enrollment`, `num_conditions`, `num_interventions`, `num_locations`, `num_collaborators`, `phase`, `study_type`, `sex`. |
+| **ClinicalBert** | Embeddings (Dense) | Contextual embeddings learned from `medicalai/ClinicalBERT` on trial descriptions. |
 
 ---
 
-# 6. Evaluation
+# 4. Models & Evaluation
 
-**Metrics used:**
-- Accuracy  
-- Precision / Recall / F1 Score  
-- ROC-AUC  
+We evaluated models using **Accuracy**, **ROC-AUC**, **Precision**, **Recall**, and **F1-Score**.
 
-All models share the same train-test split for fair comparison.
+### **1. Text Baseline (`Base.ipynb`)**
+*   **Models**: Logistic Regression, LightGBM (with SVD and raw TF-IDF).
+*   **Performance**:
+    *   **Accuracy**: ~0.806
+    *   **Precision**: ~0.611
+    *   **Recall**: ~0.449
+    *   **F1 Score**: ~0.52
+    *   **ROC-AUC**: ~0.85 (LightGBM)
+*   **Key Insight**: High-dimensional text features provide a strong baseline, capturing semantic signals about the trial's focus.
 
----
+### **2. Structured Model (`structured_model.ipynb`)**
+*   **Model**: Random Forest Classifier (with balanced class weights).
+*   **Performance**:
+    *   **Accuracy**: ~0.687
+    *   **Precision**: ~0.282
+    *   **Recall**: ~0.928
+    *   **F1 Score**: ~0.432
+    *   **ROC-AUC**: ~0.877
+*   **Key Insight**: Structured features like enrollment size and number of locations are predictive but less discriminative than full text descriptions.
 
-# 7. Key Findings
-
-- Text-only models capture high-level semantic signals.  
-- Structured features provide strong predictive power (duration, phase, sample size).  
-- XML parsing enables richer feature options for future extensions.  
-- Combining structured + text features is a promising direction.
-
----
-
-# 8. How to Run
-
-Install dependencies:
-
-```
-
-pip install -r requirements.txt
-
-```
-
-Launch notebooks:
-
-```
-
-jupyter notebook Baseline.ipynb
-jupyter notebook structured_model.ipynb
-jupyter notebook trials_data_students.ipynb
-
-```
+### **3. ClinicalBERT (`ClinicalBert.ipynb`)**
+*   **Model**: Fine-tuned `medicalai/ClinicalBERT` (Transformer).
+    *   Fine-tuned top 4 layers of BERT + Classification Head.
+*   **Performance**:
+    *   **Accuracy**: ~0.76
+    *   **ROC-AUC**: ~0.72
+    *   **Precision**: ~0.46
+    *   **Recall**: ~0.28
+    *   **F1 Score**: ~0.35
+*   **Key Insight**: Deep learning captures complex semantic relationships but requires significant compute and careful tuning.
 
 ---
 
-# 9. Team Contributions
+# 5. How to Run
 
-### **Baseline Model**
-- Text cleaning  
-- TF-IDF feature construction  
-- Logistic Regression baseline
+1.  **Install dependencies**:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-### **Structured Model**
-- CSV preprocessing  
-- Feature engineering  
-- Random Forest classifier
-
-### **XML Pipeline**
-- Raw XML parsing  
-- Metadata extraction  
-- Conversion to analysis-ready format
+2.  **Launch Notebooks**:
+    *   For the baseline: `jupyter notebook Base.ipynb`
+    *   For structured data: `jupyter notebook structured_model.ipynb`
+    *   For ClinicalBERT: `jupyter notebook ClinicalBert.ipynb` (Requires GPU recommended)
 
 ---
 
-# 10. Future Work
+# 6. Future Work
 
-- Combine structured + text features  
-- Train Gradient Boosting models  
-- Explore time-to-event or survival modeling  
-- Build an integrated “probability of success” predictor using all available signals
-
+*   **Ensemble Approaches**: Combine the strong text baseline with structured features.
+*   **Advanced NLP**: Experiment with larger Transformer models or different fine-tuning strategies.
+*   **Survival Analysis**: Model the time-to-completion rather than just binary success.
